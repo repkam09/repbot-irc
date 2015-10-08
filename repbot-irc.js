@@ -40,8 +40,17 @@ config.channel.forEach(function (channelName) {
         }
 
         if (message.indexOf("!quote") === 0) {
-            var quote = randomInt(0, wordlists.lowride_quotes.length - 1);
-            bot.say(channelName, wordlists.lowride_quotes[quote] + " - @lowride_mcclyde, 2015");
+            var quotestring = "";
+            try {
+                var quote = randomInt(0, wordlists[channelName].length - 1);
+                quotestring = wordlists[channelName][quote];
+            } catch (exception) {
+                console.log("No quotes for " + channelName);
+            }
+
+            if (quotestring !== "") {
+                bot.say(channelName, quotestring);
+            }
         }
 
         if (message.indexOf("rekt") > -1) {
