@@ -39,6 +39,11 @@ config.channel.forEach(function (channelName) {
             bot.say(channelName, wordlists.toldlist[told]);
         }
 
+        if (message.indexOf("!quote") === 0) {
+            var quote = randomInt(0, wordlists.lowride_quotes.length - 1);
+            bot.say(channelName, wordlists.lowride_quotes[quote] + " - @lowride_mcclyde, 2015");
+        }
+
         if (message.indexOf("rekt") > -1) {
             var rekt = randomInt(0, wordlists.rektlist.length - 1);
             bot.say(channelName, wordlists.rektlist[rekt]);
