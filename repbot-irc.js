@@ -1,22 +1,23 @@
 var irc = require("irc");
 var fs = require('fs');
 
+// Make sure requried files exist
 var wordlists = JSON.parse(fs.readFileSync('wordlist.json', 'utf8'));
 var secrets = JSON.parse(fs.readFileSync('oauthfile.json', 'utf8'));
 var inmem = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 
 console.log(secrets);
 
-//var config = {
-//    server: "irc.twitch.tv",
-//   botName: "repkbot",
-//    channel: ["#repkam09", "#lowride_mcclyde"]
-//};
+if (!inmem.joinlist) {
+    console.log("Please specifiy a list of channels to join in the config.json file section 'joinlist'");
+    process.exit(1);
+}
 
 var config = {
+    //server: "irc.twitch.tv",
     server: "localhost",
     botName: "repkbot",
-    channel: ["#repkam09", "#lowride_mcclyde"]
+    channel: inmem.joinlist
 };
 
 console.log("Starting up repbot on irc...");
@@ -66,7 +67,6 @@ config.channel.forEach(function (channelName) {
     bot.addListener('message' + channelName, function (from, message) {
         if (message.substring(0, 1) === '!') {
             var msgarray = message.split(" ");
-            conprint(channelName, from + ": " + message);
             switch (msgarray[0]) {
                 case '!trust': // expects !trusted [name]
                     cmdTrusted(channelName, from, msgarray);
@@ -107,6 +107,9 @@ config.channel.forEach(function (channelName) {
                 case "!about":
                     cmdAboutBot(channelName, from, msgarray);
                     break;
+                default:
+                    conprint(channelName, "Unhandled: " + from + ": " + message);
+                    break;
             }
         }
     });
@@ -142,15 +145,15 @@ function botprint(channel, logmsg) {
  */
 function isTrusted(channelName, name) {
     if ("#" + name === channelName) {
-        conprint(channelName, "Verified, user " + name + " is the owner of " + channelName);
+        // conprint(channelName, "Verified, user " + name + " is the owner of " + channelName);
         return true;
     }
 
     if (inmem[channelName].trusted.indexOf(name) > -1) {
-        conprint(channelName, "Verified, user " + name + " is trusted in " + channelName);
+        //conprint(channelName, "Verified, user " + name + " is trusted in " + channelName);
         return true;
     } else {
-        conprint(channelName, "Rejected, user " + name + " is not trusted in " + channelName);
+        //conprint(channelName, "Rejected, user " + name + " is not trusted in " + channelName);
         return false;
     }
 }
@@ -243,7 +246,7 @@ function cmdQuote(channelName, from, msgarray) {
         if (inmem[channelName].quotes.length > 0) {
             var quotenbr = randomInt(0, inmem[channelName].quotes.length);
             var quotestring = inmem[channelName].quotes[quotenbr];
-            botprint(channelName, "[" + (quotenbr + 1) + "/" + (inmem[channelName].quotes.length)+ "]  " + quotestring);
+            botprint(channelName, "[" + (quotenbr + 1) + "/" + (inmem[channelName].quotes.length) + "]  " + quotestring);
         } else {
             botprint(channelName, "This channel does not have any saved quotes, sorry! ");
         }
@@ -264,12 +267,12 @@ function cmdPrintConfig(channelName, from, msgarray) {
 }
 
 function updateConfig() {
-        fs.writeFileSync("./config.json", JSON.stringify(inmem));
+    fs.writeFileSync("./config.json", JSON.stringify(inmem));
 }
 
 function cmdPrintCommands(channelName, from, msgarray) {
     var usage = "Commands: !told, !rekt, !death, !death reset, !quote, !quote add [quote], !"
-                + config.botName + ", !trust [username], !help, !about";
+        + config.botName + ", !trust [username], !help, !about";
     botprint(channelName, usage);
 }
 
