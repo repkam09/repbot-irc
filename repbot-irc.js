@@ -1,15 +1,20 @@
 var irc = require("irc");
 var fs = require('fs');
 
-var wordlists = JSON.parse(fs.readFileSync('wordlists.json', 'utf8'));
+var wordlists = JSON.parse(fs.readFileSync('wordlist.json', 'utf8'));
 var secrets = JSON.parse(fs.readFileSync('oauthfile.json', 'utf8'));
-
-var deathcount = 44;
+var inmem = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 
 console.log(secrets);
 
+//var config = {
+//    server: "irc.twitch.tv",
+//   botName: "repkbot",
+//    channel: ["#repkam09", "#lowride_mcclyde"]
+//};
+
 var config = {
-    server: "irc.twitch.tv",
+    server: "localhost",
     botName: "repkbot",
     channel: ["#repkam09", "#lowride_mcclyde"]
 };
@@ -23,9 +28,8 @@ var bot = new irc.Client(config.server, config.botName, {
     username: config.botName
 });
 
-
 bot.addListener('error', function (message) {
-    console.log('error: ', message);
+    console.log("Error: " + JSON.stringify(message));
 });
 
 bot.addListener('end', function (reason) {
@@ -35,71 +39,240 @@ bot.addListener('end', function (reason) {
 
 config.channel.forEach(function (channelName) {
     console.log("Listening in " + channelName);
+
+    // Create a config for this channel if it doesnt exist
+    if (!inmem[channelName]) {
+        var current = {};
+        current.trusted = [];
+        current.quotes = [];
+        current.deathcount = 0;
+
+        console.log("Creating config entry for " + channelName + ": " + JSON.stringify(current));
+        inmem[channelName] = current;
+        updateConfig();
+    } else {
+        console.log("Config entry for " + channelName + " exists");
+    }
+
+    // Use this method for any setup needed in the channel
+    bot.addListener('join' + channelName, function (nick, message) {
+        console.log("" + nick + " joined the channel " + channelName);
+    });
+
+    bot.addListener('part' + channelName, function (nick, message) {
+        console.log("" + nick + " left the channel " + channelName);
+    });
+
     bot.addListener('message' + channelName, function (from, message) {
-	console.log("[" + channelName + "] " + from + " : " + message);
-        if (message.indexOf("told") > -1) {
-            var told = randomInt(0, wordlists.toldlist.length - 1);
-            bot.say(channelName, wordlists.toldlist[told]);
-        }
+        if (message.substring(0, 1) === '!') {
+            var msgarray = message.split(" ");
+            conprint(channelName, from + ": " + message);
+            switch (msgarray[0]) {
+                case '!trust': // expects !trusted [name]
+                    cmdTrusted(channelName, from, msgarray);
+                    break;
 
-        if (message.indexOf("!quote") === 0) {
-            var quotestring = "";
-            try {
-                var quote = randomInt(0, wordlists[channelName].length - 1);
-                quotestring = wordlists[channelName][quote];
-            } catch (exception) {
-                console.log("No quotes for " + channelName);
-            }
+                case "!told": // expects !told
+                    cmdTold(channelName, from, msgarray);
+                    break;
 
-            if (quotestring !== "") {
-                bot.say(channelName, quotestring);
-            }
-        }
+                case "!rekt": // expects !rekt
+                    cmdRekt(channelName, from, msgarray);
+                    break;
 
-        if (message.indexOf("rekt") > -1) {
-            var rekt = randomInt(0, wordlists.rektlist.length - 1);
-            bot.say(channelName, wordlists.rektlist[rekt]);
-        }
+                case "!quote": // expects !quote
+                    cmdQuote(channelName, from, msgarray);
+                    break;
 
-        if (message.indexOf("!hype") === 0) {
-            bot.say(channelName, "/me HYPE THRUSTERS ACTIVATED!! (http://gfycat.com/ActualFeistyBettong)");
-        }
+                case "!death":
+                    cmdDeathCount(channelName, from, msgarray);
+                    break;
 
-	if (message.indexOf("!death") === 0) {
-		if (from === "bigfignewton" || from === "repkam09") {
-			console.log(from + " increased the death counter by 1");
-			deathcount = (deathcount + 1);
-			bot.say(channelName, "Death Count: " + deathcount);
-		}
-	}
+                case "!saveconfig":
+                    cmdSaveConfig(channelName, from, msgarray);
+                    break;
 
-	if (message.indexOf("!deathreset") === 0) {
-		if (from === "bigfignewton" || from === "repkam09") {
-			bot.say(channelName, "Death counter reset");
-			deathcount = 0;
-		}
-	}
+                case "!printconfig":
+                    cmdPrintConfig(channelName, from, msgarray);
+                    break;
 
-        if (message.indexOf("!reloadconfig") === 0) {
-            // Verify that the user requesting this is "repkam09"
-            if (from === "repkam09") {
-                try {
-                    wordlists = JSON.parse(fs.readFileSync('wordlists.json', 'utf8'));
-                    bot.say(channelName, "/me configuration reloaded successfully");
-                } catch (error) {
-                    bot.say(channelName, "/me error during configuration reloaded");
-                }
-            } else {
-                bot.say(channelName, "sorry, only 'repkam09' can use this method.");
+                case "!" + config.botName:
+                    cmdPrintCommands(channelName, from, msgarray);
+                    break;
+
+                case "!help":
+                    cmdPrintCommands(channelName, from, msgarray);
+                    break;
+
+                case "!about":
+                    cmdAboutBot(channelName, from, msgarray);
+                    break;
             }
         }
-
-        if (message === "!help") {
-            bot.say(channelName, "Commands: !hype, !rekt, !told, !help");
-        }
-    })
+    });
 });
 
 function randomInt(low, high) {
     return Math.floor(Math.random() * (high - low) + low);
+}
+
+/**
+ * Print something to the console. Takes the channel name and a log message
+ */
+function conprint(channel, logmsg) {
+    console.log("[" + channel + "] " + logmsg);
+}
+
+
+/**
+ * Say something back into the IRC channel specified. Also log to console
+ */
+function botprint(channel, logmsg) {
+    conprint(channel, config.botName + ": " + logmsg);
+    bot.say(channel, logmsg);
+}
+
+/**
+ * Checks if a user is trusted in the given channel
+ * The Owner of the channel is always trusted, and therefore
+ * can add other trusted members.
+ *
+ * If I can find a way to check if someone is a channel mod, this will also
+ * give them trusted status.
+ */
+function isTrusted(channelName, name) {
+    if ("#" + name === channelName) {
+        conprint(channelName, "Verified, user " + name + " is the owner of " + channelName);
+        return true;
+    }
+
+    if (inmem[channelName].trusted.indexOf(name) > -1) {
+        conprint(channelName, "Verified, user " + name + " is trusted in " + channelName);
+        return true;
+    } else {
+        conprint(channelName, "Rejected, user " + name + " is not trusted in " + channelName);
+        return false;
+    }
+}
+
+
+/**
+ * The !trust command. Adds a user as trusted so they can
+ * have access to other commands
+ */
+function cmdTrusted(channelName, from, msgarray) {
+    if (msgarray.length !== 2) {
+        botprint(channelName, "Usage is: !trust username");
+    } else {
+        var addUser = msgarray[1];
+        // Verify that the user submitting the command is trusted
+        if (isTrusted(channelName, from)) {
+            // Check if this person is trusted already...
+            if (isTrusted(channelName, addUser)) {
+                botprint(channelName, addUser + " is already a trusted user");
+            } else {
+                inmem[channelName].trusted.push(addUser);
+                botprint(channelName, from + " adding '" + addUser + "' as trusted user");
+                updateConfig(); // Write this change out to the config file
+            }
+        } else {
+            conprint(channelName, from + " does not have trust. Command ignored.");
+        }
+    }
+}
+
+
+/**
+ * The !death command ups the channel death counter
+ * @TODO Maybe make this 'per-game' somehow...
+ */
+function cmdDeathCount(channelName, from, msgarray) {
+    if (isTrusted(channelName, from)) {
+        if (msgarray[1] === "reset") {
+            inmem[channelName].deathcount = 0;
+            botprint(channelName, "The deathcount has been reset to " + inmem[channelName].deathcount + ".");
+        } else {
+            inmem[channelName].deathcount = (inmem[channelName].deathcount + 1);
+            botprint(channelName, "The deathcount is now " + inmem[channelName].deathcount + "!");
+        }
+
+        updateConfig(); // Write this change out to the config file
+    }
+}
+
+
+/**
+ * Prints a random 'told' message from the global list of 'told' messages
+ */
+function cmdTold(channelName, from, msgarray) {
+    if (wordlists.toldlist) {
+        var randomint = randomInt(0, wordlists.toldlist.length - 1);
+        var told = wordlists.toldlist[randomint];
+        botprint(channelName, told);
+    }
+}
+
+/**
+ * Prints a random 'rekt' message from the global list of 'rekt' messages
+ */
+function cmdRekt(channelName, from, msgarray) {
+    if (wordlists.toldlist) {
+        var randomint = randomInt(0, wordlists.rektlist.length - 1);
+        var rekt = wordlists.rektlist[randomint];
+        botprint(channelName, rekt);
+    }
+}
+
+/**
+ * Prints a random quote that has been saved for this channel
+ */
+function cmdQuote(channelName, from, msgarray) {
+    // Check if we're adding a quote, or just displaying a quote
+    if (msgarray[1] === "add") {
+        var stringbuilder = "";
+        var arrayLength = msgarray.length;
+        for (var i = 2; i < arrayLength; i++) {
+            stringbuilder += (msgarray[i] + " ");
+        }
+
+        inmem[channelName].quotes.push(stringbuilder);
+        updateConfig(); // Write this change out to the config file
+        botprint(channelName, "Added quote: " + stringbuilder);
+    } else {
+        // Display an existing quote
+        if (inmem[channelName].quotes.length > 0) {
+            var quotenbr = randomInt(0, inmem[channelName].quotes.length);
+            var quotestring = inmem[channelName].quotes[quotenbr];
+            botprint(channelName, "[" + (quotenbr + 1) + "/" + (inmem[channelName].quotes.length)+ "]  " + quotestring);
+        } else {
+            botprint(channelName, "This channel does not have any saved quotes, sorry! ");
+        }
+    }
+}
+
+function cmdSaveConfig(channelName, from, msgarray) {
+    if (from === "repkam09") {
+        updateConfig();
+        botprint(channelName, "Wrote config.json file!");
+    }
+}
+
+function cmdPrintConfig(channelName, from, msgarray) {
+    if (from === "repkam09") {
+        botprint(channelName, "config: " + JSON.stringify(inmem[channelName]));
+    }
+}
+
+function updateConfig() {
+        fs.writeFileSync("./config.json", JSON.stringify(inmem));
+}
+
+function cmdPrintCommands(channelName, from, msgarray) {
+    var usage = "Commands: !told, !rekt, !death, !death reset, !quote, !quote add [quote], !"
+                + config.botName + ", !trust [username], !help, !about";
+    botprint(channelName, usage);
+}
+
+function cmdAboutBot(channelName, from, msgarray) {
+    botprint(channelName, "This bot was created by user @Repkam09. You can find the source code on github[dot]com/repkam09/repbot-irc/")
 }
