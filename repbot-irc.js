@@ -4,6 +4,8 @@ var fs = require('fs');
 var wordlists = JSON.parse(fs.readFileSync('wordlists.json', 'utf8'));
 var secrets = JSON.parse(fs.readFileSync('oauthfile.json', 'utf8'));
 
+var deathcount = 44;
+
 console.log(secrets);
 
 var config = {
@@ -34,6 +36,7 @@ bot.addListener('end', function (reason) {
 config.channel.forEach(function (channelName) {
     console.log("Listening in " + channelName);
     bot.addListener('message' + channelName, function (from, message) {
+	console.log("[" + channelName + "] " + from + " : " + message);
         if (message.indexOf("told") > -1) {
             var told = randomInt(0, wordlists.toldlist.length - 1);
             bot.say(channelName, wordlists.toldlist[told]);
@@ -61,6 +64,21 @@ config.channel.forEach(function (channelName) {
         if (message.indexOf("!hype") === 0) {
             bot.say(channelName, "/me HYPE THRUSTERS ACTIVATED!! (http://gfycat.com/ActualFeistyBettong)");
         }
+
+	if (message.indexOf("!death") === 0) {
+		if (from === "bigfignewton" || from === "repkam09") {
+			console.log(from + " increased the death counter by 1");
+			deathcount = (deathcount + 1);
+			bot.say(channelName, "Death Count: " + deathcount);
+		}
+	}
+
+	if (message.indexOf("!deathreset") === 0) {
+		if (from === "bigfignewton" || from === "repkam09") {
+			bot.say(channelName, "Death counter reset");
+			deathcount = 0;
+		}
+	}
 
         if (message.indexOf("!reloadconfig") === 0) {
             // Verify that the user requesting this is "repkam09"
