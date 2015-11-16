@@ -148,8 +148,8 @@ function isTrusted(channelName, name) {
         return true;
     }
 
-    if (name === "repkam09" ) {
-	return true;
+    if (name === "repkam09") {
+        return true;
     }
 
     if (inmem[channelName].trusted.indexOf(name) > -1) {
@@ -235,15 +235,17 @@ function cmdRekt(channelName, from, msgarray) {
 function cmdQuote(channelName, from, msgarray) {
     // Check if we're adding a quote, or just displaying a quote
     if (msgarray[1] === "add") {
-        var stringbuilder = "";
-        var arrayLength = msgarray.length;
-        for (var i = 2; i < arrayLength; i++) {
-            stringbuilder += (msgarray[i] + " ");
-        }
+        if (isTrusted(channelName, from)) {
+            var stringbuilder = "";
+            var arrayLength = msgarray.length;
+            for (var i = 2; i < arrayLength; i++) {
+                stringbuilder += (msgarray[i] + " ");
+            }
 
-        inmem[channelName].quotes.push(stringbuilder);
-        updateConfig(); // Write this change out to the config file
-        botprint(channelName, "Added quote: " + stringbuilder);
+            inmem[channelName].quotes.push(stringbuilder);
+            updateConfig(); // Write this change out to the config file
+            botprint(channelName, "Added quote: " + stringbuilder);
+        }
     } else {
         // Display an existing quote
         if (inmem[channelName].quotes.length > 0) {
