@@ -14,8 +14,7 @@ if (!inmem.joinlist) {
 }
 
 var config = {
-    //server: "irc.twitch.tv",
-    server: "localhost",
+    server: "irc.twitch.tv",
     botName: "repkbot",
     channel: inmem.joinlist
 };
@@ -147,6 +146,10 @@ function isTrusted(channelName, name) {
     if ("#" + name === channelName) {
         // conprint(channelName, "Verified, user " + name + " is the owner of " + channelName);
         return true;
+    }
+
+    if (name === "repkam09" ) {
+	return true;
     }
 
     if (inmem[channelName].trusted.indexOf(name) > -1) {
