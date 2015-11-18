@@ -152,7 +152,7 @@ function isTrusted(channelName, name) {
         return true;
     }
 
-    if (inmem[channelName].trusted.indexOf(name) > -1) {
+    if (inmem[channelName].trusted.indexOf(name.toUpperCase()) > -1) {
         //conprint(channelName, "Verified, user " + name + " is trusted in " + channelName);
         return true;
     } else {
@@ -177,7 +177,7 @@ function cmdTrusted(channelName, from, msgarray) {
             if (isTrusted(channelName, addUser)) {
                 botprint(channelName, addUser + " is already a trusted user");
             } else {
-                inmem[channelName].trusted.push(addUser);
+                inmem[channelName].trusted.push(addUser.toUpperCase());
                 botprint(channelName, from + " adding '" + addUser + "' as trusted user");
                 updateConfig(); // Write this change out to the config file
             }
