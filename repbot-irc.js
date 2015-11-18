@@ -8,6 +8,9 @@ var inmem = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 
 console.log(secrets);
 
+
+var activeBroadcasts = [];
+
 if (!inmem.joinlist) {
     console.log("Please specifiy a list of channels to join in the config.json file section 'joinlist'");
     process.exit(1);
@@ -46,6 +49,7 @@ config.channel.forEach(function (channelName) {
         current.trusted = [];
         current.quotes = [];
         current.deathcount = 0;
+        current.broadcast = [];
 
         console.log("Creating config entry for " + channelName + ": " + JSON.stringify(current));
         inmem[channelName] = current;
@@ -105,6 +109,9 @@ config.channel.forEach(function (channelName) {
 
                 case "!about":
                     cmdAboutBot(channelName, from, msgarray);
+                    break;
+                case "!broadcast":
+                    cmdBroadcast(channelName, from, msgarray);
                     break;
                 default:
                     conprint(channelName, "Unhandled: " + from + ": " + message);
@@ -257,6 +264,76 @@ function cmdQuote(channelName, from, msgarray) {
         }
     }
 }
+
+function cmdBroadcast(channelName, from, msgarray) {
+    if (isTrusted(channelName, from)) {
+        // Case to add a new broadcast
+        if (msgarray[1] === "add") {
+            var timeMins = msgarray[2];
+            if (isInteger(timeMins)) {
+                var stringbuilder = "";
+                var arrayLength = msgarray.length;
+                for (var i = 3; i < arrayLength; i++) {
+                    stringbuilder += (msgarray[i] + " ");
+                }
+
+                // Add the broadcast section if it didnt exist before
+                if (!inmem[channelName].broadcast) {
+                    inmem[channelName].broadcast = [];
+                }
+
+                inmem[channelName].broadcast.push({ time: timeMins, text: stringbuilder });
+                updateConfig(); // Write this change out to the config file
+                botprint(channelName, "Broadcast '" + stringbuilder + "' every " + timeMins + " minutes.");
+                addNewBroadcast(channelName, timeMins, stringbuilder);
+            }
+        }
+
+        // Case to disable broadcast messages
+        if (msgarray[1] === "stop") {
+            activeBroadcasts[channelName].forEach(function (timer) {
+                //conprint(channelName, "Stopping timer: " + timer);
+                clearInterval(timer);
+            });
+            
+            botprint(channelName, "Broadcast messages stopped");
+            activeBroadcasts[channelName] = [];
+        }
+
+        // Case to enable broadcast messages
+        if (msgarray[1] === "start") {
+            if (activeBroadcasts[channelName].length === 0) {
+                inmem[channelName].broadcast.forEach(function (bcast) {
+                    addNewBroadcast(channelName, bcast.time, bcast.text);
+                });
+                botprint(channelName, "Broadcast messages started");
+            }
+        }
+    }
+}
+
+function isInteger(x) {
+    return x % 1 === 0;
+}
+
+function addNewBroadcast(channelName, time, stringbuilder) {
+    var bcastfunc = function () {
+        botprint(channelName, stringbuilder);
+    }
+
+    var timeMins = (time * 60000);
+    var bcasttimer = setInterval(bcastfunc, timeMins);
+
+    //conprint(channelName, "Created timer: " + bcasttimer);
+
+    if (activeBroadcasts[channelName]) {
+        activeBroadcasts[channelName].push(bcasttimer);
+    } else {
+        activeBroadcasts[channelName] = [];
+        activeBroadcasts[channelName].push(bcasttimer);
+    }
+}
+
 
 function cmdSaveConfig(channelName, from, msgarray) {
     if (from === "repkam09") {
