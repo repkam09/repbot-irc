@@ -291,23 +291,17 @@ function cmdBroadcast(channelName, from, msgarray) {
 
         // Case to disable broadcast messages
         if (msgarray[1] === "stop") {
-            activeBroadcasts[channelName].forEach(function (timer) {
-                //conprint(channelName, "Stopping timer: " + timer);
-                clearInterval(timer);
-            });
-            
-            botprint(channelName, "Broadcast messages stopped");
-            activeBroadcasts[channelName] = [];
+            broadcastStop(channelName, from, msgarray);
         }
 
         // Case to enable broadcast messages
         if (msgarray[1] === "start") {
-            if (activeBroadcasts[channelName].length === 0) {
-                inmem[channelName].broadcast.forEach(function (bcast) {
-                    addNewBroadcast(channelName, bcast.time, bcast.text);
-                });
-                botprint(channelName, "Broadcast messages started");
-            }
+            broadcastStart(channelName, from, msgarray);
+        }
+
+        // Case to enable broadcast messages
+        if (msgarray[1] === "clear") {
+            broadcastClear(channelName, from, msgarray);
         }
     }
 }
@@ -316,9 +310,43 @@ function isInteger(x) {
     return x % 1 === 0;
 }
 
+function broadcastClear(channelName, from, msgarray) {
+    // Stop the existing broadcasts
+    broadcastStop(channelName, from, msgarray);
+
+    // Clear the configured broadcasts
+    inmem[channelName].broadcast = [];
+    updateConfig(); // Write this change out to the config file
+    botprint(channelName, "All broadcast messages cleared.");
+}
+
+function broadcastStop(channelName, from, msgarray) {
+    if (activeBroadcasts[channelName]) {
+        activeBroadcasts[channelName].forEach(function (timer) {
+            //conprint(channelName, "Stopping timer: " + timer);
+            clearInterval(timer);
+        });
+
+        botprint(channelName, "Broadcast messages stopped");
+        activeBroadcasts[channelName] = [];
+    } else {
+        activeBroadcasts[channelName] = [];
+    }
+}
+
+function broadcastStart(channelName, from, msgarray) {
+    if (activeBroadcasts[channelName].length === 0) {
+        inmem[channelName].broadcast.forEach(function (bcast) {
+            addNewBroadcast(channelName, bcast.time, bcast.text);
+        });
+        botprint(channelName, "Broadcast messages started");
+    }
+}
+
+
 function addNewBroadcast(channelName, time, stringbuilder) {
     var bcastfunc = function () {
-        botprint(channelName, stringbuilder);
+        botprint(channelName, "Announcement: " + stringbuilder);
     }
 
     var timeMins = (time * 60000);
