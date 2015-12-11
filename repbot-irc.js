@@ -107,6 +107,11 @@ config.channel.forEach(function (channelName) {
                 case "!about":
                     cmdAboutBot(channelName, from, msgarray);
                     break;
+
+                case "!pickme":
+                    cmdPickMe(channelName, from, msgarray);
+                    break;
+
                 default:
                     conprint(channelName, "Unhandled: " + from + ": " + message);
                     break;
@@ -184,6 +189,66 @@ function cmdTrusted(channelName, from, msgarray) {
     }
 }
 
+
+/**
+ * The !pickme command. A trusted user can '!pickme start' this, the bot will watch for additional users who then
+ * type this command. They will be added to a list. When a trusted user types '!pickme stop' the bot will
+ * select a random user who entered the '!pickme' list.
+ */
+
+var pickmelist = [];
+function cmdPickMe(channelName, from, msgarray) {
+    // If pickme settings do not exist for this channel yet, create them.
+    if (!pickmelist[channelName]) {
+        var obj = { inprogress: false, users: [] };
+        pickmelist[channelName] = obj;
+    }
+
+    if (msgarray[1] === "start") {
+        if (isTrusted(channelName, from)) {
+            // check if pickme is already running for this channel.
+            if (pickmelist[channelName].inprogress) {
+                botprint(channelName, "A random drawing is already in progress!");
+            } else {
+                pickmelist[channelName].inprogress = true;
+                pickmelist[channelName].users = [];
+                botprint(channelName, "A random drawing has started! Please type '!pickme' in the chat to enter your name!");
+            }
+        }
+    }
+
+    if (msgarray[1] === "stop") {
+        if (isTrusted(channelName, from)) {
+            if (pickmelist[channelName].inprogress) {
+                pickmelist[channelName].inprogress = false;
+                var count = pickmelist[channelName].users.length;
+                var winner = pickmelist[channelName].users[Math.floor(Math.random() * count)];
+                pickmelist[channelName].users = [];
+                botprint(channelName, "Random drawing stopped! " + count + " users entered. The winner is " + winner + "! Congratulations!");
+            }
+        }
+    }
+
+    if (msgarray[1] === "stats") {
+        if (isTrusted(channelName, from)) {
+            // check if pickme is already running for this channel.
+            if (pickmelist[channelName].inprogress) {
+                var amount = pickmelist[channelName].users.length;
+                botprint(channelName, "There is a drawing in progress with " + amount + " users entered so far!");
+            } else {
+                botprint(channelName, "There is a not currently a drawing running. You can start one by typing '!pickme start' in chat.");
+            }
+        }
+    }
+
+    // check if pickme is running. If it is, add the user to the list!
+    if (pickmelist[channelName].inprogress) {
+        // check if user is already in the list:
+        if (pickmelist[channelName].users.indexOf(from) === -1) {
+            pickmelist[channelName].users.push(from);
+        }
+    }
+}
 
 /**
  * The !death command ups the channel death counter
