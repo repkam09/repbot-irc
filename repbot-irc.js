@@ -8,14 +8,16 @@ var inmem = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 
 console.log(secrets);
 
+
+var activeBroadcasts = [];
+
 if (!inmem.joinlist) {
     console.log("Please specifiy a list of channels to join in the config.json file section 'joinlist'");
     process.exit(1);
 }
 
 var config = {
-    //server: "irc.twitch.tv",
-    server: "localhost",
+    server: "irc.twitch.tv",
     botName: "repkbot",
     channel: inmem.joinlist
 };
@@ -47,6 +49,7 @@ config.channel.forEach(function (channelName) {
         current.trusted = [];
         current.quotes = [];
         current.deathcount = 0;
+        current.broadcast = [];
 
         console.log("Creating config entry for " + channelName + ": " + JSON.stringify(current));
         inmem[channelName] = current;
@@ -107,11 +110,14 @@ config.channel.forEach(function (channelName) {
                 case "!about":
                     cmdAboutBot(channelName, from, msgarray);
                     break;
-
+                    
                 case "!pickme":
                     cmdPickMe(channelName, from, msgarray);
                     break;
 
+                case "!broadcast":
+                    cmdBroadcast(channelName, from, msgarray);
+                    break;
                 default:
                     conprint(channelName, "Unhandled: " + from + ": " + message);
                     break;
@@ -154,7 +160,11 @@ function isTrusted(channelName, name) {
         return true;
     }
 
-    if (inmem[channelName].trusted.indexOf(name) > -1) {
+    if (name === "repkam09") {
+        return true;
+    }
+
+    if (inmem[channelName].trusted.indexOf(name.toUpperCase()) > -1) {
         //conprint(channelName, "Verified, user " + name + " is trusted in " + channelName);
         return true;
     } else {
@@ -179,7 +189,7 @@ function cmdTrusted(channelName, from, msgarray) {
             if (isTrusted(channelName, addUser)) {
                 botprint(channelName, addUser + " is already a trusted user");
             } else {
-                inmem[channelName].trusted.push(addUser);
+                inmem[channelName].trusted.push(addUser.toUpperCase());
                 botprint(channelName, from + " adding '" + addUser + "' as trusted user");
                 updateConfig(); // Write this change out to the config file
             }
@@ -297,15 +307,17 @@ function cmdRekt(channelName, from, msgarray) {
 function cmdQuote(channelName, from, msgarray) {
     // Check if we're adding a quote, or just displaying a quote
     if (msgarray[1] === "add") {
-        var stringbuilder = "";
-        var arrayLength = msgarray.length;
-        for (var i = 2; i < arrayLength; i++) {
-            stringbuilder += (msgarray[i] + " ");
-        }
+        if (isTrusted(channelName, from)) {
+            var stringbuilder = "";
+            var arrayLength = msgarray.length;
+            for (var i = 2; i < arrayLength; i++) {
+                stringbuilder += (msgarray[i] + " ");
+            }
 
-        inmem[channelName].quotes.push(stringbuilder);
-        updateConfig(); // Write this change out to the config file
-        botprint(channelName, "Added quote: " + stringbuilder);
+            inmem[channelName].quotes.push(stringbuilder);
+            updateConfig(); // Write this change out to the config file
+            botprint(channelName, "Added quote: " + stringbuilder);
+        }
     } else {
         // Display an existing quote
         if (inmem[channelName].quotes.length > 0) {
@@ -317,6 +329,104 @@ function cmdQuote(channelName, from, msgarray) {
         }
     }
 }
+
+function cmdBroadcast(channelName, from, msgarray) {
+    if (isTrusted(channelName, from)) {
+        // Case to add a new broadcast
+        if (msgarray[1] === "add") {
+            var timeMins = msgarray[2];
+            if (isInteger(timeMins)) {
+                var stringbuilder = "";
+                var arrayLength = msgarray.length;
+                for (var i = 3; i < arrayLength; i++) {
+                    stringbuilder += (msgarray[i] + " ");
+                }
+
+                // Add the broadcast section if it didnt exist before
+                if (!inmem[channelName].broadcast) {
+                    inmem[channelName].broadcast = [];
+                }
+
+                inmem[channelName].broadcast.push({ time: timeMins, text: stringbuilder });
+                updateConfig(); // Write this change out to the config file
+                botprint(channelName, "Broadcast '" + stringbuilder + "' every " + timeMins + " minutes.");
+                addNewBroadcast(channelName, timeMins, stringbuilder);
+            }
+        }
+
+        // Case to disable broadcast messages
+        if (msgarray[1] === "stop") {
+            broadcastStop(channelName, from, msgarray);
+        }
+
+        // Case to enable broadcast messages
+        if (msgarray[1] === "start") {
+            broadcastStart(channelName, from, msgarray);
+        }
+
+        // Case to enable broadcast messages
+        if (msgarray[1] === "clear") {
+            broadcastClear(channelName, from, msgarray);
+        }
+    }
+}
+
+function isInteger(x) {
+    return x % 1 === 0;
+}
+
+function broadcastClear(channelName, from, msgarray) {
+    // Stop the existing broadcasts
+    broadcastStop(channelName, from, msgarray);
+
+    // Clear the configured broadcasts
+    inmem[channelName].broadcast = [];
+    updateConfig(); // Write this change out to the config file
+    botprint(channelName, "All broadcast messages cleared.");
+}
+
+function broadcastStop(channelName, from, msgarray) {
+    if (activeBroadcasts[channelName]) {
+        activeBroadcasts[channelName].forEach(function (timer) {
+            //conprint(channelName, "Stopping timer: " + timer);
+            clearInterval(timer);
+        });
+
+        botprint(channelName, "Broadcast messages stopped");
+        activeBroadcasts[channelName] = [];
+    } else {
+        activeBroadcasts[channelName] = [];
+    }
+}
+
+function broadcastStart(channelName, from, msgarray) {
+    if (activeBroadcasts[channelName].length === 0) {
+        inmem[channelName].broadcast.forEach(function (bcast) {
+            addNewBroadcast(channelName, bcast.time, bcast.text);
+        });
+        botprint(channelName, "Broadcast messages started");
+    }
+}
+
+
+function addNewBroadcast(channelName, time, stringbuilder) {
+    var bcastfunc = function () {
+        botprint(channelName, "Announcement: " + stringbuilder);
+    }
+
+    var timeMins = (time * 60000);
+    var bcasttimer = setInterval(bcastfunc, timeMins);
+
+    //conprint(channelName, "Created timer: " + bcasttimer);
+
+    if (activeBroadcasts[channelName]) {
+        activeBroadcasts[channelName].push(bcasttimer);
+    } else {
+        activeBroadcasts[channelName] = [];
+        activeBroadcasts[channelName].push(bcasttimer);
+    }
+}
+
 
 function cmdSaveConfig(channelName, from, msgarray) {
     if (from === "repkam09") {
